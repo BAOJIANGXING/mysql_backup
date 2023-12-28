@@ -3,8 +3,13 @@
 主要使用mysqldump实现批量的实例库进行备份，并支持数据上报。
 
 ## 版本 1.1.1
-
-1、支持批量实例备份 2、实例多库时可以为空，自动查找实例中的库进行全备 3、支持数据上报 4、支持数据上报代理模式 5、增加参数解释说明
+```bash
+1、支持批量实例备份 
+2、实例多库时可以为空，自动查找实例中的库进行全备 
+3、支持数据上报 
+4、支持数据上报代理模式 
+5、增加参数解释说明
+```
 
 ## 运行
 
@@ -63,14 +68,27 @@ config.ini中修改配置，多实例备份复制[DB1]配置，以DB开始，如
 
 ## 手动执行备份
 
-1、使用python3解释器执行 pip3 install -r requirements.txt python3 main.py
+1、使用python3解释器执行 
+```bash
+pip3 install -r requirements.txt 
+python3 main.py
+```
 
-2、使用dist中可执行文件 chmod +x mysqlbackup ./mysqlbackup
+2、使用dist中可执行文件 
+```bash
+chmod +x mysqlbackup ./mysqlbackup
+```
 
 ## 定时执行备份
 
-例如： 每日一点进行备份 crontab -e 0 1 * * * cd /data/scripts/mysql_backup/&&./mysqlbackup
+例如： 每日一点进行备份 
+```bash
+crontab -e 
+0 1 * * * cd /data/scripts/mysql_backup/&&./mysqlbackup
+```
 
 ## 参数
-
--v 查看版本信息 -c 指定配置文件
+```bash
+-v 查看版本信息
+-c 指定配置文件
+```

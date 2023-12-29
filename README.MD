@@ -1,8 +1,9 @@
-## Mysqlbackup
+# Mysqlbackup
+
+#### 介绍
 
 主要使用mysqldump实现批量的实例库进行备份，并支持数据上报。
 
-## 版本 1.1.1
 ```bash
 1、支持批量实例备份 
 2、实例多库时可以为空，自动查找实例中的库进行全备 
@@ -11,9 +12,12 @@
 5、增加参数解释说明
 ```
 
-## 运行
+#### 软件架构
+软件使用python3编写，目前仅支持mysql5.7版本
 
-### 创建信息上报库
+#### 安装教程
+
+1、创建信息上报库，如果关闭上报功能可不创建。
 
 ```bash
 /* 创建信息上报库 */
@@ -45,7 +49,7 @@ CREATE TABLE `dbs_backup_info`
 SET FOREIGN_KEY_CHECKS = 1;
 ```
 
-### 创建上报库账号（可选）
+2、创建上报库账号（可选）
 
 ```bash
 /* 创建上报库账号*/
@@ -54,7 +58,7 @@ GRANT INSERT, UPDATE ON alart_history.dbs_backup_info TO 'backup_reporting'@'%';
 FLUSH PRIVILEGES;
 ```
 
-### 创建备份账号（可选）
+3、创建备份账号（可选）
 
 ```bash
 /* 创建备份账号*/
@@ -62,11 +66,12 @@ CREATE USER 'backup'@'%' IDENTIFIED BY 'dRAnZDa4yvjR'; GRANT SELECT, SHOW VIEW, 
 TABLES ON *.* TO 'backup'@'%'; FLUSH PRIVILEGES;
 ```
 
-## 修改配置
+4、修改配置
 
 config.ini中修改配置，多实例备份复制[DB1]配置，以DB开始，如DB1...DB10等
 
-## 手动执行备份
+#### 使用说明
+手动执行备份
 
 1、使用python3解释器执行 
 ```bash
@@ -79,7 +84,7 @@ python3 main.py
 chmod +x mysqlbackup ./mysqlbackup
 ```
 
-## 定时执行备份
+定时执行备份
 
 例如： 每日一点进行备份 
 ```bash
@@ -87,7 +92,8 @@ crontab -e
 0 1 * * * cd /data/scripts/mysql_backup/&&./mysqlbackup
 ```
 
-## 参数
+
+#### 参数
 ```bash
 -v 查看版本信息
 -c 指定配置文件

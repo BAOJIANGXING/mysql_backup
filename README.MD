@@ -73,13 +73,15 @@ config.ini中修改配置，多实例备份复制[DB1]配置，以DB开始，如
 #### 使用说明
 手动执行备份
 
-1、使用python3解释器执行 
+可以根据需求使用解释器运行，或者使用dist中打包后的可执行文件运行
+
+1、使用python3解释器运行
 ```bash
 pip3 install -r requirements.txt 
 python3 main.py
 ```
 
-2、使用dist中可执行文件 
+2、使用dist中可执行文件运行
 ```bash
 chmod +x mysqlbackup ./mysqlbackup
 ```

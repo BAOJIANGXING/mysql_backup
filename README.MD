@@ -22,6 +22,7 @@ v1.1.2
 ---增加备份位置字段
 ALTER TABLE dbs_backup_info
 ADD COLUMN bklocate varchar(32) CHARACTER SET utf8mb4;
+```
 
 #### 软件架构
 软件使用python3编写，目前仅支持mysql5.7版本

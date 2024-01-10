@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # @File  : database_backup.py
 # @Author: bjxing
-# @Date  : 2023/12/28
+# @Date  : 2024/01/10
 # @Desc  : 备份类
 
 import os
@@ -12,6 +12,7 @@ import gzip
 import bisect
 import subprocess
 import math
+import socket
 from configparser import ConfigParser
 from datetime import datetime
 from os import path
@@ -47,11 +48,11 @@ class DatabaseBackup(object):
         self.proxy_port = config.get('Proxy_Server', 'proxy_port')
         self.proxy_username = config.get('Proxy_Server', 'proxy_username')
         self.proxy_password = config.get('Proxy_Server', 'proxy_password')
-        self.local_port = config.get('Proxy_Server', 'local_port')
         self.report_host = config.get('Info_Reporting', 'host')
         self.report_port = config.get('Info_Reporting', 'port')
         self.report_user = config.get('Info_Reporting', 'user')
         self.report_password = config.get('Info_Reporting', 'password')
+        self.data = None
 
     def perform_backup(self, db_name):
         try:
@@ -94,17 +95,23 @@ class DatabaseBackup(object):
         return self.start_time, self.end_time, self.elapsed_time, self.bksize, self.bkstate
 
     def query_databases(self):
-        conn = pymysql.connect(
-            host=self.mysql_host,
-            port=int(self.mysql_port),
-            user=self.mysql_user,
-            passwd=self.mysql_password,
-            db='mysql',
-        )
-        cur = conn.cursor()
-        cur.execute('show databases')
-        data = cur.fetchall()
-        return data
+        try:
+            conn = pymysql.connect(
+                host=self.mysql_host,
+                port=int(self.mysql_port),
+                user=self.mysql_user,
+                passwd=self.mysql_password,
+                db='mysql',
+            )
+            cur = conn.cursor()
+            cur.execute('show databases')
+            self.data = cur.fetchall()
+            self.data = [item[0] for item in self.data]
+        except Exception as e:
+            self.logger("执行数据库查询出现异常：%s", str(e))
+            self.data = ['ERROR']
+
+        return self.data
 
     def format_filesize(self, size):
         d = [(1024 - 1, 'K'), (1024 ** 2 - 1, 'M'), (1024 ** 3 - 1, 'G'), (1024 ** 4 - 1, 'T')]
@@ -150,56 +157,68 @@ class DatabaseBackup(object):
         self.db_host = None
         self.db_port = None
         try:
-            if int(config.get('Proxy_Server', 'proxy_enabled')) == 1:
-                self.logger(f"已开启数据上报代理模式！")
-                self.server = SSHTunnelForwarder(
-                    ssh_address_or_host=(self.proxy_host, int(self.proxy_port)),
-                    ssh_username=self.proxy_username,
-                    ssh_password=self.proxy_password,
-                    remote_bind_address=(self.report_host, int(self.report_port)),
-                    local_bind_address=('127.0.0.1', int(self.local_port)),
-                )
-                self.server.start()
-                self.server.check_tunnels()
-                # print(self.server.tunnel_is_up, flush=True)
-                if self.server.is_active:
-                    self.logger(
-                        '本地端口:{}已转发至远程端口{}:{}'.format(self.server.local_bind_port, self.proxy_host, self.proxy_port))
-                else:
-                    self.logger('本地端口{}:{}转发失败,请重试')
+            max_retries = 3
+            retry_count = 0
+            connected = False
+            while not connected and retry_count < max_retries:
+                try:
+                    if int(config.get('Proxy_Server', 'proxy_enabled')) == 1:
+                        self.logger(f"已开启数据上报代理模式！")
+                        self.server = SSHTunnelForwarder(
+                            ssh_address_or_host=(self.proxy_host, int(self.proxy_port)),
+                            ssh_username=self.proxy_username,
+                            ssh_password=self.proxy_password,
+                            remote_bind_address=(self.report_host, int(self.report_port)),
+                            local_bind_address=('127.0.0.1', 0),
+                        )
+                        self.server.start()
+                        self.server.check_tunnels()
+                        # print(self.server.tunnel_is_up, flush=True)
+                        if self.server.is_active:
+                            connected = True
+                            self.local_port = self.server.local_bind_port
+                            self.logger(
+                                '本地端口:{}已转发至远程端口{}:{}'.format(self.local_port, self.proxy_host, self.proxy_port))
+                        else:
+                            self.logger(
+                                '本地端口{}:{}转发失败，请重试'.format(self.server.local_bind_host, self.server.local_bind_port))
+                        self.db_host = self.server.local_bind_host
+                        self.db_port = self.server.local_bind_port
+                    else:
+                        self.logger(f"未开启数据上报代理模式！")
+                        self.db_host = self.report_host
+                        self.db_port = int(self.report_port)
 
-                self.db_host = self.server.local_bind_host
-                self.db_port = self.server.local_bind_port
-            else:
-                self.logger(f"未开启数据上报代理模式！")
-                self.db_host = self.report_host
-                self.db_port = int(self.report_port)
+                    conn = pymysql.connect(
+                        host=self.db_host,
+                        port=self.db_port,
+                        user=self.report_user,
+                        passwd=self.report_password,
+                        db=config.get('Info_Reporting', 'db'),
+                    )
+                    insert_sql = "INSERT INTO dbs_backup_info(project, source, category, address, port, dbname, " \
+                                 "bksize, bktype, bkstate, start_time, end_time, elapsed_time, bklocate) " \
+                                 "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
 
-            conn = pymysql.connect(
-                host=self.db_host,
-                port=self.db_port,
-                user=self.report_user,
-                passwd=self.report_password,
-                db=config.get('Info_Reporting', 'db'),
-            )
-            insert_sql = "INSERT INTO dbs_backup_info(project, source, category, address, port, dbname, " \
-                         "bksize, bktype, bkstate, start_time, end_time, elapsed_time) " \
-                         "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
-
-            params = (
-                self.mysql_project, 'IDC', 'Mysql', self.mysql_host, self.mysql_port, dbname, self.bksize, '全量',
-                self.bkstate, self.convert_timestamp_to_datetime(self.start_time),
-                self.convert_timestamp_to_datetime(self.end_time), self.elapsed_time)
-            cur = conn.cursor()
-            cur.execute(insert_sql, params)
-            conn.commit()
-            formatted_sql = cur.mogrify(insert_sql, params)
-            self.logger(f"执行数据上报{self.report_host}，插入语句： {formatted_sql}")
-            cur.close()
-            conn.close()
-            if int(config.get('Proxy_Server', 'proxy_enabled')) == 1:
-                self.server.stop()
-            return 'successful'
+                    params = (
+                        self.mysql_project, 'IDC', 'Mysql', self.mysql_host, self.mysql_port, dbname, self.bksize, '全量',
+                        self.bkstate, self.convert_timestamp_to_datetime(self.start_time),
+                        self.convert_timestamp_to_datetime(self.end_time), self.elapsed_time, self.get_local_ip())
+                    cur = conn.cursor()
+                    cur.execute(insert_sql, params)
+                    conn.commit()
+                    formatted_sql = cur.mogrify(insert_sql, params)
+                    self.logger(f"执行数据上报{self.report_host}，插入语句： {formatted_sql}")
+                    cur.close()
+                    conn.close()
+                    if connected:
+                        self.server.stop()  # 连接成功后释放端口
+                        self.logger(f"关闭代理通道。")
+                except Exception as e:
+                    self.logger(f"连接失败: {str(e)}")
+                    retry_count += 1
+                    self.logger(f"重试次数: {retry_count}")
+                    time.sleep(5)  # 等待一段时间后重试
         except Exception as e:
             self.logger(f"备份信息上报时发生异常: {str(e)}")
             return 'failed'
@@ -207,3 +226,7 @@ class DatabaseBackup(object):
     def convert_timestamp_to_datetime(self, timestamp):
         formatted_time = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
         return formatted_time
+
+    def get_local_ip(self):
+        ip = socket.gethostbyname(socket.gethostname())
+        return ip

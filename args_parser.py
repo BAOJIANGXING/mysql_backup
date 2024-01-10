@@ -17,7 +17,7 @@ def get_config_file():
 
 
 def print_version():
-    print("当前版本：1.1.1 增加参数解释器。")
+    print("当前版本：1.1.2 修复上报的逻辑问题；修改动态端口代理透传和重试机制；增加备份位置字段。")
 
 
 parser = argparse.ArgumentParser(description='备份程序')

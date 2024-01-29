@@ -17,7 +17,7 @@ def get_config_file():
 
 
 def print_version():
-    print("当前版本：1.1.2 修复上报的逻辑问题；修改动态端口代理透传和重试机制；增加备份位置字段。")
+    print("当前版本：1.1.3 修复关闭代理模式时循环上报问题；去掉重试次数；增加--set-gtid-purged=OFF参数。")
 
 
 parser = argparse.ArgumentParser(description='备份程序')
